@@ -57,7 +57,7 @@ pub enum QuadColor {
     /// Red color
     Red,
     /// Yellow color
-    Yellow
+    Yellow,
 }
 
 /// For the 7 Color Displays
@@ -134,6 +134,31 @@ impl ColorType for TriColor {
                 },
             ),
         }
+    }
+}
+
+impl ColorType for QuadColor {
+    // 每个缓冲区中每个像素占2位
+    const BITS_PER_PIXEL_PER_BUFFER: usize = 2;
+    // 使用1个缓冲区来存储2位颜色信息
+    const BUFFER_COUNT: usize = 1;
+
+    fn bitmask(&self, _bwrbit: bool, pos: u32) -> (u8, u16) {
+        // 计算当前像素在字节中的起始位位置（每像素占2位）
+        let shift = (pos % 4) * 2;
+        // 掩码：清除当前像素的2位
+        let mask = !(0x03 << shift);
+        // 根据颜色获取对应的2位值
+        let color_bits = match self {
+            QuadColor::Black => 0b00,  // 黑色 0b00
+            QuadColor::White => 0b01,  // 白色 0b01
+            QuadColor::Yellow => 0b10, // 黄色 0b10
+            QuadColor::Red => 0b11,    // 红色 0b11
+        };
+        // 将颜色值移到正确的位置
+        let value = (color_bits << shift) as u16;
+
+        (mask, value)
     }
 }
 
@@ -498,6 +523,48 @@ impl From<TriColor> for embedded_graphics_core::pixelcolor::Rgb888 {
             TriColor::White => embedded_graphics_core::pixelcolor::Rgb888::WHITE,
             // assume chromatic is red
             TriColor::Chromatic => embedded_graphics_core::pixelcolor::Rgb888::new(255, 0, 0),
+        }
+    }
+}
+
+#[cfg(feature = "graphics")]
+impl PixelColor for QuadColor {
+    type Raw = embedded_graphics_core::pixelcolor::raw::RawU2;
+}
+
+#[cfg(feature = "graphics")]
+impl From<BinaryColor> for QuadColor {
+    fn from(b: BinaryColor) -> QuadColor {
+        match b {
+            BinaryColor::On => QuadColor::Black,
+            BinaryColor::Off => QuadColor::White,
+        }
+    }
+}
+#[cfg(feature = "graphics")]
+impl From<embedded_graphics_core::pixelcolor::Rgb888> for QuadColor {
+    fn from(rgb: embedded_graphics_core::pixelcolor::Rgb888) -> Self {
+        use embedded_graphics_core::pixelcolor::RgbColor;
+        if rgb == RgbColor::BLACK {
+            QuadColor::Black
+        } else if rgb == RgbColor::WHITE {
+            QuadColor::White
+        } else if rgb == RgbColor::YELLOW {
+            QuadColor::Yellow
+        } else {
+            QuadColor::Red
+        }
+    }
+}
+#[cfg(feature = "graphics")]
+impl From<QuadColor> for embedded_graphics_core::pixelcolor::Rgb888 {
+    fn from(quad_color: QuadColor) -> Self {
+        use embedded_graphics_core::pixelcolor::RgbColor;
+        match quad_color {
+            QuadColor::Black => embedded_graphics_core::pixelcolor::Rgb888::BLACK,
+            QuadColor::White => embedded_graphics_core::pixelcolor::Rgb888::WHITE,
+            QuadColor::Yellow => embedded_graphics_core::pixelcolor::Rgb888::YELLOW,
+            QuadColor::Red => embedded_graphics_core::pixelcolor::Rgb888::RED,
         }
     }
 }
