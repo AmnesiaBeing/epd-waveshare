@@ -46,6 +46,20 @@ pub enum TriColor {
     Chromatic,
 }
 
+/// Only for the Black/White/Red/Yellow-Displays
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum QuadColor {
+    /// Black color
+    Black,
+    /// White color
+    #[default]
+    White,
+    /// Red color
+    Red,
+    /// Yellow color
+    Yellow
+}
+
 /// For the 7 Color Displays
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum OctColor {
