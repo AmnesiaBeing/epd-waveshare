@@ -60,7 +60,7 @@
 //!
 //! Maximum speed tested by myself was 8Mhz but more should be possible (Ben Krasnow used 18Mhz with his implemenation)
 //!
-#![no_std]
+#![cfg_attr(not(feature = "simulator"), no_std)]
 #![deny(missing_docs)]
 
 #[cfg(feature = "graphics")]
@@ -105,6 +105,9 @@ pub mod epd7in5b_v2;
 pub use epd7in5b_v2 as epd7in5b_v3;
 pub mod epd12in48b_v2;
 pub mod epd7in5_yrd0750ryf665f60;
+
+#[cfg(feature = "simulator")]
+pub mod epd_simulator;
 
 pub(crate) mod type_a;
 
