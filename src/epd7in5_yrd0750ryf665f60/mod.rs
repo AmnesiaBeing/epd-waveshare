@@ -18,6 +18,8 @@ pub(crate) mod command;
 use self::command::Command;
 use crate::buffer_len;
 
+use log::{debug, info};
+
 /// Full size buffer for use with the 7in5b EPD (yrd0750ryf665f60)
 #[cfg(feature = "graphics")]
 pub type Display7in5 = crate::graphics::Display<
@@ -36,7 +38,7 @@ pub const HEIGHT: u32 = 480;
 pub const DEFAULT_BACKGROUND_COLOR: QuadColor = QuadColor::White;
 
 /// Number of bytes for b/w buffer and same for chromatic buffer bits
-const NUM_DISPLAY_BITS: usize = WIDTH as usize / 8 * HEIGHT as usize;
+const NUM_DISPLAY_BITS: usize = WIDTH as usize / 4 * HEIGHT as usize;
 const IS_BUSY_LOW: bool = true;
 const SINGLE_BYTE_WRITE: bool = false;
 
@@ -61,7 +63,7 @@ where
     fn init(&mut self, spi: &mut SPI, delay: &mut DELAY) -> Result<(), SPI::Error> {
         // Reset the device
         // 手册要求，RST先拉低10ms，再拉高10ms，然后等待屏幕空闲
-        self.interface.reset(delay, 10_000, 10_000);
+        self.interface.reset(delay, 20_000, 20_000);
         self.wait_until_idle(spi, delay)?;
 
         // 示例代码中的神秘命令，需要先执行这条命令才能正确初始化
@@ -118,7 +120,7 @@ where
 
     fn sleep(&mut self, spi: &mut SPI, delay: &mut DELAY) -> Result<(), SPI::Error> {
         self.wait_until_idle(spi, delay)?;
-        self.command(spi, Command::PowerOff)?;
+        self.cmd_with_data(spi, Command::PowerOff, &[0x00])?;
         self.wait_until_idle(spi, delay)?;
         self.cmd_with_data(spi, Command::DeepSleep, &[0xA5])?;
         Ok(())
@@ -131,13 +133,11 @@ where
         delay: &mut DELAY,
     ) -> Result<(), SPI::Error> {
         self.wait_until_idle(spi, delay)?;
-        // (B) version sends one buffer for black and one for red
         self.cmd_with_data(
             spi,
             Command::DataStartTransmission1,
             &buffer[..NUM_DISPLAY_BITS],
         )?;
-        self.interface.cmd(spi, Command::DataStop)?;
         Ok(())
     }
 
@@ -155,8 +155,9 @@ where
     }
 
     fn display_frame(&mut self, spi: &mut SPI, delay: &mut DELAY) -> Result<(), SPI::Error> {
+        self.cmd_with_data(spi, Command::DisplayRefresh, &[0x00])?;
+        delay.delay_us(500);
         self.wait_until_idle(spi, delay)?;
-        self.command(spi, Command::DisplayRefresh)?;
         Ok(())
     }
 
@@ -166,8 +167,11 @@ where
         buffer: &[u8],
         delay: &mut DELAY,
     ) -> Result<(), SPI::Error> {
+        info!("Updating and displaying frame on EPD7in5");
         self.update_frame(spi, buffer, delay)?;
-        self.command(spi, Command::DisplayRefresh)?;
+        info!("Frame updated, now displaying");
+        self.command(spi, Command::PowerOn)?;
+        self.display_frame(spi, delay)?;
         Ok(())
     }
 
