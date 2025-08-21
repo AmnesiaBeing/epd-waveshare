@@ -103,6 +103,11 @@ pub trait ColorType {
     /// * .1 are the bits used to set the color in the byte (eg: 0x80 in BiColor)
     ///      this is u16 because we set 2 bytes in case of split buffer
     fn bitmask(&self, bwrbit: bool, pos: u32) -> (u8, u16);
+
+    /// convert 0 -> black, 1 -> white for binary color
+    /// convert 00 -> black, 01 -> white, 11 -> red for tricolor
+    /// and so on
+    fn from_bits(bits: u8) -> Self;
 }
 
 impl ColorType for Color {
@@ -113,6 +118,13 @@ impl ColorType for Color {
         match self {
             Color::Black => (!bit, 0u16),
             Color::White => (!bit, bit as u16),
+        }
+    }
+
+    fn from_bits(bits: u8) -> Self {
+        match bits {
+            0x00 => Color::Black,
+            _ => Color::White,
         }
     }
 }
@@ -133,6 +145,14 @@ impl ColorType for TriColor {
                     (bit as u16) << 8 | bit as u16
                 },
             ),
+        }
+    }
+
+    fn from_bits(bits: u8) -> Self {
+        match bits {
+            0x00 => TriColor::Black,
+            0x01 => TriColor::Chromatic,
+            _ => TriColor::White,
         }
     }
 }
@@ -160,6 +180,15 @@ impl ColorType for QuadColor {
 
         (mask, value)
     }
+
+    fn from_bits(bits: u8) -> Self {
+        match bits {
+            0x00 => QuadColor::Black,
+            0x01 => QuadColor::White,
+            0x02 => QuadColor::Yellow,
+            _ => QuadColor::Red,
+        }
+    }
 }
 
 impl ColorType for OctColor {
@@ -169,6 +198,16 @@ impl ColorType for OctColor {
         let mask = !(0xF0 >> ((pos % 2) * 4));
         let bits = self.get_nibble() as u16;
         (mask, if pos % 2 == 1 { bits } else { bits << 4 })
+    }
+
+    fn from_bits(bits: u8) -> Self {
+        match bits {
+            0x00 => OctColor::Black,
+            0x01 => OctColor::White,
+            0x02 => OctColor::Yellow,
+            // TODO:
+            _ => OctColor::Red,
+        }
     }
 }
 

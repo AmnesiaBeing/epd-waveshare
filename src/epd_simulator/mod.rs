@@ -15,7 +15,7 @@ use embedded_graphics_core::{
 };
 use embedded_graphics_simulator::{OutputSettingsBuilder, SimulatorDisplay, Window};
 
-use crate::color::ColorType;
+use crate::color::{ColorType, QuadColor};
 use crate::interface::DisplayInterface;
 use crate::traits::{InternalWiAdditions, RefreshLut, WaveshareDisplay};
 
@@ -32,6 +32,8 @@ where
     height: u32,
     /// Background Color
     background_color: COLOR,
+    /// Simulator window
+    simulator_window: Option<core::cell::RefCell<Window>>,
     /// Simulator display
     simulator_display: SimulatorDisplay<COLOR>,
     /// Output settings for the simulator
@@ -53,13 +55,13 @@ where
     DELAY: DelayNs,
 {
     fn init(&mut self, _spi: &mut SPI, _delay: &mut DELAY) -> Result<(), SPI::Error> {
-        // Create and show the simulator window
-        Window::new(
-            &format!("EPD Simulator {}x{}", self.width, self.height),
-            &self.output_settings,
-        )
-        .show_static(&self.simulator_display);
-
+        if self.simulator_window.is_none() {
+            // Create and show the simulator window
+            self.simulator_window = Some(core::cell::RefCell::new(Window::new(
+                &format!("EPD Simulator {}x{}", self.width, self.height),
+                &self.output_settings,
+            )));
+        }
         Ok(())
     }
 }
@@ -152,13 +154,17 @@ where
         Ok(())
     }
 
-    fn display_frame(&mut self, _spi: &mut SPI, _delay: &mut DELAY) -> Result<(), SPI::Error> {
+    fn display_frame(&mut self, spi: &mut SPI, delay: &mut DELAY) -> Result<(), SPI::Error> {
         // Refresh the simulator window
-        Window::new(
-            &format!("EPD Simulator {}x{}", self.width, self.height),
-            &self.output_settings,
-        )
-        .show_static(&self.simulator_display);
+        // Window::new(
+        //     &format!("EPD Simulator {}x{}", self.width, self.height),
+        //     &self.output_settings,
+        // )
+        // .show_static(&self.simulator_display);
+        let _ = self.init(spi, delay);
+        if let Some(window) = &self.simulator_window {
+            window.borrow_mut().show_static(&self.simulator_display);
+        }
         Ok(())
     }
 
@@ -223,7 +229,7 @@ where
     ) -> Result<Self, SPI::Error> {
         let interface = DisplayInterface::new(busy, dc, rst, delay_us);
 
-        let buffer_size = (width * height) as usize / 8;
+        let buffer_size = (width * height) as usize / 8 * COLOR::BITS_PER_PIXEL_PER_BUFFER;
         let buffer = vec![0u8; buffer_size];
 
         let output_settings = OutputSettingsBuilder::new().scale(1).build();
@@ -235,6 +241,7 @@ where
             width,
             height,
             background_color: COLOR::default(),
+            simulator_window: None,
             simulator_display,
             output_settings,
             interface,
@@ -266,19 +273,12 @@ where
                 let abs_y = start_y + y;
 
                 // Calculate position in buffer
-                let index = (abs_y * self.width + abs_x) as usize;
-                let byte_index = index / 8;
-                let bit_index = 7 - (index % 8) as u8;
+                let pos = abs_y * self.width + abs_x;
+                let (mask, _) = COLOR::bitmask(&self.background_color, false, pos);
 
-                // Get pixel value from buffer
-                let pixel_on = (self.buffer[byte_index] >> bit_index) & 1 != 0;
-
-                // Determine pixel color
-                let color = if pixel_on {
-                    self.background_color.clone()
-                } else {
-                    self.background_color.clone()
-                };
+                let color = COLOR::from_bits(
+                    self.buffer[pos as usize * COLOR::BITS_PER_PIXEL_PER_BUFFER / 8] & mask,
+                );
 
                 // Draw pixel to simulator display
                 let _ =
