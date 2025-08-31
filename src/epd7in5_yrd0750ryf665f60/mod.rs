@@ -82,6 +82,9 @@ where
 
         self.cmd_with_data(spi, Command::PllControl, &[0x08])?;
 
+        self.command(spi, Command::PowerOn)?;
+        self.wait_until_idle(spi, delay)?;
+
         Ok(())
     }
 }

@@ -180,6 +180,7 @@ where
 
     fn clear_frame(&mut self, _spi: &mut SPI, _delay: &mut DELAY) -> Result<(), SPI::Error> {
         // Clear internal buffer
+        // self.buffer.fill(self.background_color.to_bits());
         self.buffer.fill(0);
 
         // 修正：Infallible 错误处理（clear 永远不会失败）
