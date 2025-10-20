@@ -77,8 +77,9 @@ impl<
     #[inline(always)]
     fn default() -> Self {
         Self {
-            // default color must be 0 for every bit in a pixel to make this work everywere
-            buffer: [0u8; BYTECOUNT],
+            // default color must be 0 for every bit in a pixel to make this work everywhere
+            // 注意：这里强行硬编码了0x55作为白色，只能应用于这种4色墨水屏
+            buffer: [0x55; BYTECOUNT],
             rotation: DisplayRotation::default(),
             _color: PhantomData,
         }

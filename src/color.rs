@@ -183,10 +183,10 @@ impl ColorType for QuadColor {
 
     fn from_bits(bits: u8) -> Self {
         match bits {
-            0x00 => QuadColor::Black,
             0x01 => QuadColor::White,
             0x02 => QuadColor::Yellow,
-            _ => QuadColor::Red,
+            0x11 => QuadColor::Red,
+            _ => QuadColor::Black,
         }
     }
 }
@@ -571,6 +571,24 @@ impl PixelColor for QuadColor {
     type Raw = embedded_graphics_core::pixelcolor::raw::RawU2;
 }
 
+impl QuadColor {
+    /// Get the color encoding of the color for one bit
+    pub fn get_bit_value(self) -> u8 {
+        match self {
+            QuadColor::White => 1u8,
+            _ => 0u8,
+        }
+    }
+
+    /// Gets a full byte of black or white pixels
+    pub fn get_byte_value(self) -> u8 {
+        match self {
+            QuadColor::White => 0xff,
+            _ => 0x00,
+        }
+    }
+}
+
 #[cfg(feature = "graphics")]
 impl From<BinaryColor> for QuadColor {
     fn from(b: BinaryColor) -> QuadColor {
@@ -580,6 +598,7 @@ impl From<BinaryColor> for QuadColor {
         }
     }
 }
+
 #[cfg(feature = "graphics")]
 impl From<embedded_graphics_core::pixelcolor::Rgb888> for QuadColor {
     fn from(rgb: embedded_graphics_core::pixelcolor::Rgb888) -> Self {
@@ -595,6 +614,7 @@ impl From<embedded_graphics_core::pixelcolor::Rgb888> for QuadColor {
         }
     }
 }
+
 #[cfg(feature = "graphics")]
 impl From<QuadColor> for embedded_graphics_core::pixelcolor::Rgb888 {
     fn from(quad_color: QuadColor) -> Self {

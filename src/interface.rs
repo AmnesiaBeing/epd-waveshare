@@ -117,6 +117,9 @@ where
                 spi.write(data_chunk)?;
             }
             Ok(())
+        } else if cfg!(feature = "simulator") {
+            // No need to do in simulator
+            Ok(())
         } else {
             spi.write(data)
         }
@@ -183,8 +186,13 @@ where
     /// Most likely there was a mistake with the 2in9 busy connection
     /// //TODO: use the #cfg feature to make this compile the right way for the certain types
     pub(crate) fn is_busy(&mut self, is_busy_low: bool) -> bool {
-        (is_busy_low && self.busy.is_low().unwrap_or(false))
-            || (!is_busy_low && self.busy.is_high().unwrap_or(false))
+        if cfg!(feature = "simulator") {
+            // 模拟器中，永远不处于忙状态
+            false
+        } else {
+            (is_busy_low && self.busy.is_low().unwrap_or(false))
+                || (!is_busy_low && self.busy.is_high().unwrap_or(false))
+        }
     }
 
     /// Resets the device.

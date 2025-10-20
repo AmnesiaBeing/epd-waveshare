@@ -10,7 +10,7 @@ use embedded_hal::{
     spi::SpiDevice,
 };
 
-use crate::color::QuadColor;
+use crate::color::{ColorType, QuadColor};
 use crate::interface::DisplayInterface;
 use crate::traits::{InternalWiAdditions, RefreshLut, WaveshareDisplay};
 
@@ -18,7 +18,12 @@ pub(crate) mod command;
 use self::command::Command;
 use crate::buffer_len;
 
-use log::{debug, info};
+use log::info;
+
+use embedded_graphics_core::prelude::*;
+
+#[cfg(feature = "simulator")]
+use embedded_graphics_simulator::{OutputSettingsBuilder, SimulatorDisplay, Window};
 
 /// Full size buffer for use with the 7in5b EPD (yrd0750ryf665f60)
 #[cfg(feature = "graphics")]
@@ -49,6 +54,10 @@ pub struct Epd7in5<SPI, BUSY, DC, RST, DELAY> {
     interface: DisplayInterface<SPI, BUSY, DC, RST, DELAY, SINGLE_BYTE_WRITE>,
     /// Background Color
     color: QuadColor,
+    #[cfg(feature = "simulator")]
+    simulator_window: Option<core::cell::RefCell<Window>>,
+    #[cfg(feature = "simulator")]
+    simulator_display: SimulatorDisplay<QuadColor>,
 }
 
 impl<SPI, BUSY, DC, RST, DELAY> InternalWiAdditions<SPI, BUSY, DC, RST, DELAY>
@@ -110,7 +119,20 @@ where
         let interface = DisplayInterface::new(busy, dc, rst, delay_us);
         let color = DEFAULT_BACKGROUND_COLOR;
 
-        let mut epd = Epd7in5 { interface, color };
+        let mut epd = Epd7in5 {
+            interface,
+            color,
+            #[cfg(feature = "simulator")]
+            simulator_window: Some(core::cell::RefCell::new(Window::new(
+                &format!("EPD Simulator {}x{}", WIDTH, HEIGHT),
+                &OutputSettingsBuilder::new().scale(1).build(),
+            ))),
+            #[cfg(feature = "simulator")]
+            simulator_display: SimulatorDisplay::with_default_color(
+                Size::new(WIDTH, HEIGHT),
+                QuadColor::default(),
+            ),
+        };
 
         epd.init(spi, delay)?;
 
@@ -135,13 +157,46 @@ where
         buffer: &[u8],
         delay: &mut DELAY,
     ) -> Result<(), SPI::Error> {
-        self.wait_until_idle(spi, delay)?;
-        self.cmd_with_data(
-            spi,
-            Command::DataStartTransmission1,
-            &buffer[..NUM_DISPLAY_BITS],
-        )?;
-        Ok(())
+        if cfg!(feature = "simulator") {
+            // 1. 校验缓冲区长度：确保缓冲区字节数 = 总像素数 / 4（每像素2位，每字节存4个像素）
+            debug_assert_eq!(
+                buffer.len(),
+                NUM_DISPLAY_BITS,
+                "EPD buffer length mismatch: expected {}, got {}",
+                NUM_DISPLAY_BITS,
+                buffer.len()
+            );
+
+            // 2. 解析缓冲区：生成 (索引, QuadColor) 迭代器
+            let color_iter = buffer.iter().flat_map(|byte| {
+                [0, 2, 4, 6].iter().map(move |&shift| {
+                    let pixel_bits = (*byte >> shift) & 0x03;
+                    QuadColor::from_bits(pixel_bits)
+                })
+            });
+
+            // 3. 为每个颜色计算坐标（行优先：(0,0) → (WIDTH-1,0) → (0,1) → ...）
+            let pixels = color_iter.enumerate().map(|(i, color)| {
+                let x = (i % WIDTH as usize) as i32; // 列坐标（0到WIDTH-1）
+                let y = (i / WIDTH as usize) as i32; // 行坐标（0到HEIGHT-1）
+                Pixel(Point::new(x, y), color) // 生成带坐标的Pixel
+            });
+
+            // 4. 更新模拟器显示
+            self.simulator_display
+                .draw_iter(pixels)
+                .expect("Failed to draw frame to EPD simulator");
+
+            Ok(())
+        } else {
+            self.wait_until_idle(spi, delay)?;
+            self.cmd_with_data(
+                spi,
+                Command::DataStartTransmission1,
+                &buffer[..NUM_DISPLAY_BITS],
+            )?;
+            Ok(())
+        }
     }
 
     fn update_partial_frame(
@@ -158,10 +213,18 @@ where
     }
 
     fn display_frame(&mut self, spi: &mut SPI, delay: &mut DELAY) -> Result<(), SPI::Error> {
-        self.cmd_with_data(spi, Command::DisplayRefresh, &[0x00])?;
-        delay.delay_us(500);
-        self.wait_until_idle(spi, delay)?;
-        Ok(())
+        if cfg!(feature = "simulator") {
+            let _ = self.init(spi, delay);
+            if let Some(window) = &self.simulator_window {
+                window.borrow_mut().show_static(&self.simulator_display);
+            }
+            Ok(())
+        } else {
+            self.cmd_with_data(spi, Command::DisplayRefresh, &[0x00])?;
+            delay.delay_us(500);
+            self.wait_until_idle(spi, delay)?;
+            Ok(())
+        }
     }
 
     fn update_and_display_frame(
