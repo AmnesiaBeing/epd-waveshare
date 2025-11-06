@@ -620,10 +620,11 @@ impl From<QuadColor> for embedded_graphics_core::pixelcolor::Rgb888 {
     fn from(quad_color: QuadColor) -> Self {
         use embedded_graphics_core::pixelcolor::RgbColor;
         match quad_color {
-            QuadColor::Black => embedded_graphics_core::pixelcolor::Rgb888::BLACK,
-            QuadColor::White => embedded_graphics_core::pixelcolor::Rgb888::WHITE,
-            QuadColor::Yellow => embedded_graphics_core::pixelcolor::Rgb888::YELLOW,
-            QuadColor::Red => embedded_graphics_core::pixelcolor::Rgb888::RED,
+            // 因电脑屏幕太亮，模拟器里面直接显示白色、黄色体验很差，稍微修改了颜色
+            QuadColor::Black => embedded_graphics_core::pixelcolor::Rgb888::new(10, 10, 10),
+            QuadColor::White => embedded_graphics_core::pixelcolor::Rgb888::new(240, 240, 240),
+            QuadColor::Yellow => embedded_graphics_core::pixelcolor::Rgb888::new(240, 240, 100),
+            QuadColor::Red => embedded_graphics_core::pixelcolor::Rgb888::new(200, 50, 50),
         }
     }
 }
