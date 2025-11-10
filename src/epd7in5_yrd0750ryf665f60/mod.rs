@@ -183,6 +183,7 @@ where
             });
 
             // 4. 更新模拟器显示
+            #[cfg(feature = "simulator")]
             self.simulator_display
                 .draw_iter(pixels)
                 .expect("Failed to draw frame to EPD simulator");
@@ -215,6 +216,7 @@ where
     fn display_frame(&mut self, spi: &mut SPI, delay: &mut DELAY) -> Result<(), SPI::Error> {
         if cfg!(feature = "simulator") {
             let _ = self.init(spi, delay);
+            #[cfg(feature = "simulator")]
             if let Some(window) = &self.simulator_window {
                 window.borrow_mut().show_static(&self.simulator_display);
             }
