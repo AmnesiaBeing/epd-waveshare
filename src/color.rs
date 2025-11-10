@@ -164,12 +164,19 @@ impl ColorType for QuadColor {
     const BUFFER_COUNT: usize = 1;
 
     fn bitmask(&self, _bwrbit: bool, pos: u32) -> (u8, u16) {
-        // 计算当前像素在字节中的起始位位置（每像素占2位）
-        let shift = (pos % 4) * 2;
+        // yrd0750ryf665f60墨水屏的颜色顺序是 Pixel 1->4，其中Pixel4占据Bit6~7，和平时的认知是反过来的
+        // 计算当前像素在字节中的起始位位置（每像素占2位）（原来这里代码写的是shift = (pos%4)*2，没有按规格数取反）
+        // 模拟器里使用符合常识的顺序，但是实际上改成相反的顺序
+        let shift = if cfg!(feature = "simulator") {
+            (pos % 4) * 2
+        } else {
+            6 - (pos % 4) * 2
+        };
         // 掩码：清除当前像素的2位
         let mask = !(0x03 << shift);
         // 根据颜色获取对应的2位值
         let color_bits = match self {
+            // 这里的颜色值只在yrd0750ryf665f60的R50H寄存器的DDX为1时有效，如果该寄存器为0，这里的颜色顺序要相反
             QuadColor::Black => 0b00,  // 黑色 0b00
             QuadColor::White => 0b01,  // 白色 0b01
             QuadColor::Yellow => 0b10, // 黄色 0b10
@@ -183,9 +190,9 @@ impl ColorType for QuadColor {
 
     fn from_bits(bits: u8) -> Self {
         match bits {
-            0x01 => QuadColor::White,
-            0x02 => QuadColor::Yellow,
-            0x11 => QuadColor::Red,
+            0b01 => QuadColor::White,
+            0b10 => QuadColor::Yellow,
+            0b11 => QuadColor::Red,
             _ => QuadColor::Black,
         }
     }
@@ -618,7 +625,6 @@ impl From<embedded_graphics_core::pixelcolor::Rgb888> for QuadColor {
 #[cfg(feature = "graphics")]
 impl From<QuadColor> for embedded_graphics_core::pixelcolor::Rgb888 {
     fn from(quad_color: QuadColor) -> Self {
-        use embedded_graphics_core::pixelcolor::RgbColor;
         match quad_color {
             // 因电脑屏幕太亮，模拟器里面直接显示白色、黄色体验很差，稍微修改了颜色
             QuadColor::Black => embedded_graphics_core::pixelcolor::Rgb888::new(10, 10, 10),
