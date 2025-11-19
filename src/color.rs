@@ -597,6 +597,18 @@ impl QuadColor {
 }
 
 #[cfg(feature = "graphics")]
+impl From<embedded_graphics_core::pixelcolor::raw::RawU2> for QuadColor {
+    fn from(raw: embedded_graphics_core::pixelcolor::raw::RawU2) -> Self {
+        match embedded_graphics_core::prelude::RawData::into_inner(raw) {
+            0b00 => QuadColor::Black,
+            0b01 => QuadColor::White,
+            0b10 => QuadColor::Yellow,
+            _ => QuadColor::Red, // 0b11
+        }
+    }
+}
+
+#[cfg(feature = "graphics")]
 impl From<BinaryColor> for QuadColor {
     fn from(b: BinaryColor) -> QuadColor {
         match b {
