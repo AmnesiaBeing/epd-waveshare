@@ -123,10 +123,7 @@ where
             interface,
             color,
             #[cfg(feature = "simulator")]
-            simulator_window: Some(core::cell::RefCell::new(Window::new(
-                &format!("EPD Simulator {}x{}", WIDTH, HEIGHT),
-                &OutputSettingsBuilder::new().scale(1).build(),
-            ))),
+            simulator_window: None,
             #[cfg(feature = "simulator")]
             simulator_display: SimulatorDisplay::with_default_color(
                 Size::new(WIDTH, HEIGHT),
@@ -217,8 +214,16 @@ where
         if cfg!(feature = "simulator") {
             let _ = self.init(spi, delay);
             #[cfg(feature = "simulator")]
-            if let Some(window) = &self.simulator_window {
-                window.borrow_mut().show_static(&self.simulator_display);
+            {
+                if self.simulator_window.is_none() {
+                    self.simulator_window = Some(core::cell::RefCell::new(Window::new(
+                        &format!("EPD Simulator {}x{}", WIDTH, HEIGHT),
+                        &OutputSettingsBuilder::new().scale(1).build(),
+                    )));
+                }
+                if let Some(window) = &self.simulator_window {
+                    window.borrow_mut().update(&self.simulator_display);
+                }
             }
             Ok(())
         } else {
