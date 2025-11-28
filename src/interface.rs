@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use crate::traits::Command;
 use core::marker::PhantomData;
 use embedded_hal::{delay::*, digital::*, spi::SpiDevice};
