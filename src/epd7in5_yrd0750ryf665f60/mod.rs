@@ -10,7 +10,9 @@ use embedded_hal::{
     spi::SpiDevice,
 };
 
-use crate::color::{ColorType, QuadColor};
+use crate::color::QuadColor;
+#[cfg(feature = "simulator")]
+use crate::color::ColorType;
 use crate::interface::DisplayInterface;
 use crate::traits::{InternalWiAdditions, RefreshLut, WaveshareDisplay};
 
@@ -20,6 +22,7 @@ use crate::buffer_len;
 
 use log::info;
 
+#[cfg(feature = "simulator")]
 use embedded_graphics_core::prelude::*;
 
 #[cfg(feature = "simulator")]
@@ -148,53 +151,59 @@ where
         Ok(())
     }
 
+    #[cfg(feature = "simulator")]
     fn update_frame(
         &mut self,
         spi: &mut SPI,
         buffer: &[u8],
         delay: &mut DELAY,
     ) -> Result<(), SPI::Error> {
-        if cfg!(feature = "simulator") {
-            // 1. 校验缓冲区长度：确保缓冲区字节数 = 总像素数 / 4（每像素2位，每字节存4个像素）
-            debug_assert_eq!(
-                buffer.len(),
-                NUM_DISPLAY_BITS,
-                "EPD buffer length mismatch: expected {}, got {}",
-                NUM_DISPLAY_BITS,
-                buffer.len()
-            );
+        // 1. 校验缓冲区长度：确保缓冲区字节数 = 总像素数 / 4（每像素2位，每字节存4个像素）
+        debug_assert_eq!(
+            buffer.len(),
+            NUM_DISPLAY_BITS,
+            "EPD buffer length mismatch: expected {}, got {}",
+            NUM_DISPLAY_BITS,
+            buffer.len()
+        );
 
-            // 2. 解析缓冲区：生成 (索引, QuadColor) 迭代器
-            let color_iter = buffer.iter().flat_map(|byte| {
-                [0, 2, 4, 6].iter().map(move |&shift| {
-                    let pixel_bits = (*byte >> shift) & 0x03;
-                    QuadColor::from_bits(pixel_bits)
-                })
-            });
+        // 2. 解析缓冲区：生成 (索引, QuadColor) 迭代器
+        let color_iter = buffer.iter().flat_map(|byte| {
+            [0, 2, 4, 6].iter().map(move |&shift| {
+                let pixel_bits = (*byte >> shift) & 0x03;
+                QuadColor::from_bits(pixel_bits)
+            })
+        });
 
-            // 3. 为每个颜色计算坐标（行优先：(0,0) → (WIDTH-1,0) → (0,1) → ...）
-            let pixels = color_iter.enumerate().map(|(i, color)| {
-                let x = (i % WIDTH as usize) as i32; // 列坐标（0到WIDTH-1）
-                let y = (i / WIDTH as usize) as i32; // 行坐标（0到HEIGHT-1）
-                Pixel(Point::new(x, y), color) // 生成带坐标的Pixel
-            });
+        // 3. 为每个颜色计算坐标（行优先：(0,0) → (WIDTH-1,0) → (0,1) → ...）
+        let pixels = color_iter.enumerate().map(|(i, color)| {
+            let x = (i % WIDTH as usize) as i32; // 列坐标（0到WIDTH-1）
+            let y = (i / WIDTH as usize) as i32; // 行坐标（0到HEIGHT-1）
+            Pixel(Point::new(x, y), color) // 生成带坐标的Pixel
+        });
 
-            // 4. 更新模拟器显示
-            #[cfg(feature = "simulator")]
-            self.simulator_display
-                .draw_iter(pixels)
-                .expect("Failed to draw frame to EPD simulator");
+        // 4. 更新模拟器显示
+        self.simulator_display
+            .draw_iter(pixels)
+            .expect("Failed to draw frame to EPD simulator");
 
-            Ok(())
-        } else {
-            self.wait_until_idle(spi, delay)?;
-            self.cmd_with_data(
-                spi,
-                Command::DataStartTransmission1,
-                &buffer[..NUM_DISPLAY_BITS],
-            )?;
-            Ok(())
-        }
+        Ok(())
+    }
+
+    #[cfg(not(feature = "simulator"))]
+    fn update_frame(
+        &mut self,
+        spi: &mut SPI,
+        buffer: &[u8],
+        delay: &mut DELAY,
+    ) -> Result<(), SPI::Error> {
+        self.wait_until_idle(spi, delay)?;
+        self.cmd_with_data(
+            spi,
+            Command::DataStartTransmission1,
+            &buffer[..NUM_DISPLAY_BITS],
+        )?;
+        Ok(())
     }
 
     fn update_partial_frame(
